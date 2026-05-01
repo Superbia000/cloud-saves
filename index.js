@@ -529,7 +529,7 @@ async function listSaves() {
     }
 }
 
-// 新增：用於在 Git Checkout 讀取完畢後，地毯式搜索並還原那些從存檔中被拉取下來的擴展 .git 資訊
+// 新增：用於在 Git Checkout 讀取完畢後，不僅還原被拉下來的擴展 .git 資訊，同時進行 Git 骨架修復
 async function restoreCheckoutGit(targetPath) {
     try {
         const entries = await fs.readdir(targetPath, { withFileTypes: true });
@@ -540,14 +540,33 @@ async function restoreCheckoutGit(targetPath) {
                 if (entry.name === '.git_cloud_hidden') {
                     const originalGit = path.join(targetPath, '.git');
                     try {
-                        // 確保目標是乾淨的，先強制移除可能衝突的空 .git，接著把隱藏的資料夾改回 .git
+                        // 1. 確保目標是乾淨的，先強制移除可能衝突的損壞 .git
                         await fs.rm(originalGit, { recursive: true, force: true }).catch(() => {});
+                        
+                        // 2. 把從存檔拉下來的隱藏檔改回正統的 .git
                         await fs.rename(entryPath, originalGit);
+                        
+                        // 3. 【核心修復機制】手動補齊 Git 運作所需的基礎空目錄！
+                        // 因為 Git 存檔時「不記錄空資料夾」，這會導致還原出來的 .git 壞掉
+                        // 把這些空目錄建回來，Git 就會重新承認這是一個正常的倉庫，SillyTavern 就能更新了
+                        const requiredGitDirs = [
+                            'objects/info',
+                            'objects/pack',
+                            'refs/heads',
+                            'refs/tags',
+                            'branches',
+                            'info'
+                        ];
+                        for (const dirName of requiredGitDirs) {
+                            await fs.mkdir(path.join(originalGit, dirName), { recursive: true }).catch(() => {});
+                        }
+                        
+                        console.log(`[cloud-saves] 成功修復並還原被刪除擴展的 Git 資訊: ${targetPath}`);
                     } catch (e) {
-                        console.error(`[cloud-saves] 無法還原隱藏的 git 目錄 ${entryPath}:`, e);
+                        console.error(`[cloud-saves] 無法還原/修復隱藏的 git 目錄 ${entryPath}:`, e);
                     }
                 } else if (entry.name !== '.git') {
-                    // 只要不是 .git，就繼續往下層資料夾尋找
+                    // 只要不是 .git，就繼續往下層資料夾遞迴探查
                     await restoreCheckoutGit(entryPath);
                 }
             }
@@ -559,7 +578,7 @@ async function restoreCheckoutGit(targetPath) {
     }
 }
 
-// 完整版：修改自原有的 loadSave，加入了全新的掃描防護機制和完整的錯誤恢復
+// 完整版 loadSave，確保呼叫了上述修復機制
 async function loadSave(tagName) {
     try {
         currentOperation = 'load_save';
@@ -597,13 +616,14 @@ async function loadSave(tagName) {
                 return { success: false, message: '获取存档提交哈希失败' };
             }
 
-            // 這一步會拉取舊的擴展與其 .git_cloud_hidden
+            // 這一步會向本地釋放原本已經刪除的擴充（帶有不完整的 .git_cloud_hidden）
             await git.checkout(commit);
 
         } finally {
-            // 1. 還原本來就存在的擴展
+            // 1. 還原本來就持續存在的擴展
             await unmaskNestedGit(maskedPaths);
-            // 2. 地毯式補救措施：主動掃描並還原那些原本被刪除，但在 checkout 後才從存檔裡被復原的幽靈擴展
+            
+            // 2. 地毯式補救措施與 Git 骨架修復：抓出所有從存檔復原的幽靈擴展並修復它們
             await restoreCheckoutGit(extensionsPath); 
         }
 
@@ -621,7 +641,6 @@ async function loadSave(tagName) {
 
     } catch (error) {
         console.error(`[cloud-saves] 載入存檔時發生錯誤:`, error.message);
-        // 如果發生錯誤，嘗試恢復 stash 以還原使用者的工作區
         try {
             const cfg = await readConfig();
             if (cfg.has_temp_stash) {
@@ -629,20 +648,17 @@ async function loadSave(tagName) {
                 await git.stash(['pop']);
                 cfg.has_temp_stash = false;
                 await saveConfig(cfg);
-                console.log('[cloud-saves] 已回退未保存的更改');
             }
         } catch (recoverError) {
-            console.error('[cloud-saves] 錯誤恢復 (stash pop) 失敗:', recoverError.message);
+            console.error('[cloud-saves] 錯誤恢復失敗:', recoverError.message);
         }
         
-        // 如果你的代碼中有 handleGitError 這個幫助函數，就用它；如果沒有，可以直接回傳 JSON
         return { success: false, message: '加载存档失败', details: error.message };
         
     } finally {
         currentOperation = null;
     }
 }
-
 async function deleteSave(tagName) {
     try {
         currentOperation = 'delete_save';
