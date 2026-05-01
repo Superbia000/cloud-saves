@@ -419,8 +419,51 @@ async function listSaves() {
         console.log('[cloud-saves] 获取存档列表');
         const git = await getGitInstance();
 
-        console.log('[cloud-saves] Fetching and pruning remote tags...');
-        await git.fetch(['origin', '--tags', '--force', '--prune-tags']);
+        // 1. 使用 ls-remote 獲取當前遠端倉庫的「真實標籤清單」
+        console.log('[cloud-saves] Fetching remote tags list via ls-remote...');
+        let lsRemoteOutput = '';
+        try {
+            lsRemoteOutput = await git.listRemote(['--tags', 'origin']);
+        } catch (remoteErr) {
+            console.warn('[cloud-saves] 無法訪問遠端倉庫，可能是尚未初始化完成。', remoteErr.message);
+        }
+        
+        const remoteTags = new Set();
+        if (lsRemoteOutput) {
+            const lines = lsRemoteOutput.trim().split('\n');
+            for (const line of lines) {
+                if (!line) continue;
+                // 過濾出 save_ 開頭的標籤，並忽略 Git 特有的 ^{} 指標後綴
+                const match = line.match(/refs\/tags\/(save_[^\s\^]+)/);
+                if (match) {
+                    remoteTags.add(match[1]);
+                }
+            }
+        }
+
+        // 2. 清理本地殘留：找出本地所有的 save_ 標籤，把「不在當前遠端倉庫」的直接刪除
+        const localTagsSummary = await git.tags(['-l', 'save_*']);
+        const localTags = localTagsSummary.all || [];
+        let prunedCount = 0;
+        for (const localTag of localTags) {
+            if (!remoteTags.has(localTag)) {
+                try {
+                    await git.tag(['-d', localTag]);
+                    prunedCount++;
+                } catch(e) {}
+            }
+        }
+        if (prunedCount > 0) {
+            console.log(`[cloud-saves] 已清理 ${prunedCount} 個不屬於當前遠端倉庫的本地殘留存檔(標籤)。`);
+        }
+
+        // 3. 從遠端拉取最新的標籤資料到本地 (以獲取註解內容和日期)
+        console.log('[cloud-saves] Fetching tags data from remote...');
+        try {
+            await git.fetch(['origin', '--tags', '--force']);
+        } catch (fetchErr) {
+            console.warn('[cloud-saves] 拉取標籤時出現警告，如果是空倉庫則為正常現象。');
+        }
 
         const formatString = "%(refname:short)%00%(creatordate:iso)%00%(taggername)%00%(subject)%00%(contents)";
         const tagOutput = await git.raw('tag', '-l', 'save_*', '--sort=-creatordate', `--format=${formatString}`);
@@ -432,6 +475,10 @@ async function listSaves() {
             if (parts.length < 5) return null;
 
             const tagName = parts[0];
+            
+            // 【二次保險過濾】確保返回的標籤確實在遠端的清單中
+            if (!remoteTags.has(tagName)) return null;
+
             const createdAt = new Date(parts[1]).toISOString();
             const taggerName = parts[2] || '未知';
             const subject = parts[3];
