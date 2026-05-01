@@ -529,6 +529,37 @@ async function listSaves() {
     }
 }
 
+// 新增：用於在 Git Checkout 讀取完畢後，地毯式搜索並還原那些從存檔中被拉取下來的擴展 .git 資訊
+async function restoreCheckoutGit(targetPath) {
+    try {
+        const entries = await fs.readdir(targetPath, { withFileTypes: true });
+        for (const entry of entries) {
+            const entryPath = path.join(targetPath, entry.name);
+            if (entry.isDirectory()) {
+                // 如果抓到了從雲端死灰復燃的隱藏 Git 檔案夾
+                if (entry.name === '.git_cloud_hidden') {
+                    const originalGit = path.join(targetPath, '.git');
+                    try {
+                        // 確保目標是乾淨的，先強制移除可能衝突的空 .git，接著把隱藏的資料夾改回 .git
+                        await fs.rm(originalGit, { recursive: true, force: true }).catch(() => {});
+                        await fs.rename(entryPath, originalGit);
+                    } catch (e) {
+                        console.error(`[cloud-saves] 無法還原隱藏的 git 目錄 ${entryPath}:`, e);
+                    }
+                } else if (entry.name !== '.git') {
+                    // 只要不是 .git，就繼續往下層資料夾尋找
+                    await restoreCheckoutGit(entryPath);
+                }
+            }
+        }
+    } catch (error) {
+        if (error.code !== 'ENOENT') {
+            console.error(`[cloud-saves] 掃描還原 .git_cloud_hidden 時發生錯誤 (${targetPath}):`, error);
+        }
+    }
+}
+
+// 完整版：修改自原有的 loadSave，加入了全新的掃描防護機制和完整的錯誤恢復
 async function loadSave(tagName) {
     try {
         currentOperation = 'load_save';
@@ -547,6 +578,7 @@ async function loadSave(tagName) {
         let stashCreated = false;
 
         try {
+            // 切換前，先保護現有的 .git
             maskedPaths = await maskNestedGit(extensionsPath);
 
             const status = await git.status();
@@ -555,18 +587,24 @@ async function loadSave(tagName) {
                 const stashResult = await git.stash(['push', '-u', '-m', 'Temporary stash before loading save']);
                 stashCreated = stashResult && !stashResult.includes('No local changes to save');
                 config.has_temp_stash = stashCreated;
-            } else config.has_temp_stash = false;
+            } else {
+                config.has_temp_stash = false;
+            }
             
             const commit = await git.revparse([tagName]);
             if (!commit) {
-                if(stashCreated) await git.stash(['pop']);
+                if (stashCreated) await git.stash(['pop']);
                 return { success: false, message: '获取存档提交哈希失败' };
             }
 
+            // 這一步會拉取舊的擴展與其 .git_cloud_hidden
             await git.checkout(commit);
 
         } finally {
+            // 1. 還原本來就存在的擴展
             await unmaskNestedGit(maskedPaths);
+            // 2. 地毯式補救措施：主動掃描並還原那些原本被刪除，但在 checkout 後才從存檔裡被復原的幽靈擴展
+            await restoreCheckoutGit(extensionsPath); 
         }
 
         config.current_save = {
@@ -580,7 +618,10 @@ async function loadSave(tagName) {
             message: '存档加载成功',
             stashCreated: stashCreated
         };
+
     } catch (error) {
+        console.error(`[cloud-saves] 載入存檔時發生錯誤:`, error.message);
+        // 如果發生錯誤，嘗試恢復 stash 以還原使用者的工作區
         try {
             const cfg = await readConfig();
             if (cfg.has_temp_stash) {
@@ -588,9 +629,15 @@ async function loadSave(tagName) {
                 await git.stash(['pop']);
                 cfg.has_temp_stash = false;
                 await saveConfig(cfg);
+                console.log('[cloud-saves] 已回退未保存的更改');
             }
-        } catch (popError) {}
-        return handleGitError(error, `加载存档 ${tagName}`);
+        } catch (recoverError) {
+            console.error('[cloud-saves] 錯誤恢復 (stash pop) 失敗:', recoverError.message);
+        }
+        
+        // 如果你的代碼中有 handleGitError 這個幫助函數，就用它；如果沒有，可以直接回傳 JSON
+        return { success: false, message: '加载存档失败', details: error.message };
+        
     } finally {
         currentOperation = null;
     }
