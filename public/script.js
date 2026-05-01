@@ -664,26 +664,25 @@ document.addEventListener('DOMContentLoaded', function() {
     // 创建存档
     async function createSave(name, description) {
         try {
-            // 修改：如果存檔名稱為空或只有空格，則自動生成香港時間的存檔名稱
-            if (!name || name.trim() === '') {
-                // 強制轉換為 Asia/Hong Kong 時區
-                const hkNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Hong Kong" }));
-                
-                const yyyy = hkNow.getFullYear();
-                // padStart 確保月份、日期、小時、分鐘永遠是兩位數
-                const mm = String(hkNow.getMonth() + 1).padStart(2, '0'); 
-                const dd = String(hkNow.getDate()).padStart(2, '0');
-                const hh = String(hkNow.getHours()).padStart(2, '0');
-                const min = String(hkNow.getMinutes()).padStart(2, '0');
-                
-                // 組合成 YYYY-MM-DD - HHMM
-                name = `${yyyy}-${mm}-${dd} - ${hh}${min}`;
+            let finalName = name ? name.trim() : '';
+            
+            // 核心修改點：如果存檔名稱留空，則自動以瀏覽使用者的當地時區生成時間格式
+            if (finalName === '') {
+                // new Date() 是前端瀏覽器原生函數，保證生成的是當前網頁使用者的當地時區，與伺服器時區無關
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                // 格式化為: YYYY-MM-DD - HHMM
+                finalName = `${year}-${month}-${day} - ${hours}${minutes}`;
             }
             
             showLoading('正在创建存档...');
             
             const result = await apiCall('saves', 'POST', {
-                name: name,
+                name: finalName,
                 description: description
             });
             
