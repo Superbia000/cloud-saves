@@ -1259,7 +1259,7 @@ async function init(router) {
             }
         });
 
-        router.post('/saves/:tagName/overwrite', async (req, res) => {
+                router.post('/saves/:tagName/overwrite', async (req, res) => {
             if (currentOperation) return res.status(409).json({ success: false, message: `正在进行操作: ${currentOperation}` });
             currentOperation = 'overwrite_save';
             const { tagName } = req.params;
@@ -1319,4 +1319,29 @@ async function init(router) {
                 try {
                     await git.push('origin', tagName);
                 } catch (pushTagError) {
-                     await git.tag
+                     await git.tag(['-d', tagName]);
+                     throw pushTagError;
+                }
+                
+                res.json({ success: true, message: '存档覆盖成功', tag: tagName });
+
+            } catch (error) {
+                res.status(500).json({ success: false, message: '覆盖存档时发生意外错误', details: error.message });
+            } finally {
+                currentOperation = null;
+            }
+        });
+
+        // 啟動後台自動存檔計時器
+        setupBackendAutoSaveTimer();
+
+    } catch (error) {
+        console.error('[cloud-saves] 初始化插件期间发生错误:', error);
+    }
+} // 結束 init 函數
+
+// 匯出插件 (這段剛才被截斷了，是擴展能正常運作的關鍵)
+module.exports = {
+    info,
+    init
+};
