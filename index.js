@@ -3,6 +3,7 @@ const path = require('path');
 const express = require('express');
 const crypto = require('crypto');
 const simpleGit = require('simple-git');
+const GIT_BACKUP_NAME = '_git_cloud_backup'; // 終極破解：不使用點開頭！規避所有 .* 忽略規則
 
 let fetch;
 try {
@@ -102,7 +103,7 @@ async function ensureGitignoreHidden() {
     }
 }
 
-// 核心修復：在隱藏 .git 的同時，強行注入我們的破解規則
+// 1. 隱藏並強行綁架 .git，確保備份無死角
 async function maskNestedGit(targetDir) {
     const maskedPaths = [];
     async function scan(currentDir) {
@@ -112,16 +113,16 @@ async function maskNestedGit(targetDir) {
                 const fullPath = path.join(currentDir, entry.name);
                 if (entry.isDirectory()) {
                     if (entry.name === '.git') {
-                        const hiddenPath = path.join(currentDir, '.git_cloud_hidden');
+                        const hiddenPath = path.join(currentDir, GIT_BACKUP_NAME);
                         try {
-                            // 確保乾淨轉換
+                            // 將真正的 .git 改名，避開點開頭的忽略規則
                             await fs.rm(hiddenPath, { recursive: true, force: true }).catch(() => {});
                             await fs.rename(fullPath, hiddenPath);
                             
-                            // 【破解 1】防誤殺：強行植入最高權限的 .gitignore，突破所有擴展本身的忽略規則，強制備份 config！
-                            await fs.writeFile(path.join(hiddenPath, '.gitignore'), "# Force tracking\n!*");
+                            // 暴力破解：強制在此目錄下植入最強的白名單規則，保證內部設定絕對被追蹤
+                            await fs.writeFile(path.join(hiddenPath, '.gitignore'), "!*\n").catch(() => {});
                             
-                            // 【破解 2】防骨架蒸發：為 Git 核心空目錄植入 .gitkeep，強迫 Git 備份這些血管與神經！
+                            // 補血機制：植入 .gitkeep，確保 Git 的基本造血空資料夾被跟隨打包
                             const keepDirs = ['objects/info', 'objects/pack', 'refs/heads', 'refs/tags', 'branches', 'info'];
                             for (const dir of keepDirs) {
                                 const keepPath = path.join(hiddenPath, dir);
@@ -133,8 +134,15 @@ async function maskNestedGit(targetDir) {
                         } catch (e) {
                             console.error(`[cloud-saves] 無法隱藏 ${fullPath}:`, e);
                         }
-                    } else if (entry.name !== '.git_cloud_hidden') {
-                        // 遞迴尋找下層
+                    } else if (entry.name === '.git_cloud_hidden') {
+                        // 順手把以前遺留的舊存檔架構升級過來
+                        const hiddenPath = path.join(currentDir, GIT_BACKUP_NAME);
+                        try {
+                            await fs.rename(fullPath, hiddenPath);
+                            maskedPaths.push(path.join(currentDir, '.git'));
+                        } catch (e) {}
+                    } else if (entry.name !== GIT_BACKUP_NAME && entry.name !== 'node_modules') {
+                        // 跳過無用目錄加速掃描，遞迴掃描下一層
                         await scan(fullPath);
                     }
                 }
@@ -145,12 +153,12 @@ async function maskNestedGit(targetDir) {
     return maskedPaths;
 }
 
-// 還原時，將我們注入的破解規則一併打掃乾淨
+// 2. 解除綁架時，原封不動還原現存的插件
 async function unmaskNestedGit(maskedPaths) {
     for (const originalGit of maskedPaths) {
-        const hiddenPath = originalGit.replace(/\.git$/, '.git_cloud_hidden');
+        const hiddenPath = originalGit.replace(/\.git$/, GIT_BACKUP_NAME);
         try {
-            // 清理注入的破破解 .gitignore
+            // 清理注入的強制追蹤規則
             await fs.rm(path.join(hiddenPath, '.gitignore'), { force: true }).catch(() => {});
             await fs.rm(originalGit, { recursive: true, force: true }).catch(() => {});
             await fs.rename(hiddenPath, originalGit);
@@ -544,28 +552,31 @@ async function listSaves() {
     }
 }
 
-// 補救讀取被刪除的插件
+// 3. 還原被刪除後、又被 Git Checkout 下來的「復活插件」
 async function restoreCheckoutGit(targetPath) {
     try {
         const entries = await fs.readdir(targetPath, { withFileTypes: true });
         for (const entry of entries) {
             const entryPath = path.join(targetPath, entry.name);
             if (entry.isDirectory()) {
-                if (entry.name === '.git_cloud_hidden') {
+                // 如果抓到了我們的新版備份檔(或是舊版)，就把它改回真正的 .git
+                if (entry.name === GIT_BACKUP_NAME || entry.name === '.git_cloud_hidden') {
                     const originalGit = path.join(targetPath, '.git');
                     try {
                         await fs.rm(originalGit, { recursive: true, force: true }).catch(() => {});
                         await fs.rename(entryPath, originalGit);
-                        // 清理拉取下來的破解檔案
-                        await fs.rm(path.join(originalGit, '.gitignore'), { force: true }).catch(() => {});
                         
-                        // 針對那些「使用舊代碼備份、從未被補救」的舊存檔作最後的骨架重建（盡力挽救舊檔用）
+                        // 清理掉我們強制追蹤的髒東西
+                        await fs.rm(path.join(originalGit, '.gitignore'), { force: true }).catch(() => {});
+                        await fs.rm(path.join(originalGit, '.gitkeep'), { force: true }).catch(() => {}); // 順手清理根目錄可能存在的 gitkeep
+                        
+                        // 保險：強制建立基本空資料夾架構
                         const requiredGitDirs = ['objects/info', 'objects/pack', 'refs/heads', 'refs/tags', 'branches', 'info'];
                         for (const dirName of requiredGitDirs) {
                             await fs.mkdir(path.join(originalGit, dirName), { recursive: true }).catch(() => {});
                         }
                     } catch (e) {}
-                } else if (entry.name !== '.git') {
+                } else if (entry.name !== '.git' && entry.name !== 'node_modules') {
                     await restoreCheckoutGit(entryPath);
                 }
             }
@@ -573,7 +584,7 @@ async function restoreCheckoutGit(targetPath) {
     } catch (error) {}
 }
 
-// 完整版 loadSave，確保呼叫了上述修復機制
+// 4. 完整的 Load Save 處理流程
 async function loadSave(tagName) {
     try {
         currentOperation = 'load_save';
@@ -592,7 +603,7 @@ async function loadSave(tagName) {
         let stashCreated = false;
 
         try {
-            // 切換前，先保護現有的 .git
+            // 切換分支前，保護現有的 .git
             maskedPaths = await maskNestedGit(extensionsPath);
 
             const status = await git.status();
@@ -611,14 +622,12 @@ async function loadSave(tagName) {
                 return { success: false, message: '获取存档提交哈希失败' };
             }
 
-            // 這一步會向本地釋放原本已經刪除的擴充（帶有不完整的 .git_cloud_hidden）
+            // 這一步會向本地覆寫檔案，把舊存檔的 _git_cloud_backup 給放出來
             await git.checkout(commit);
 
         } finally {
-            // 1. 還原本來就持續存在的擴展
+            // 這兩步將無死角還原所有受影響以及「死灰復燃」的插件 .git
             await unmaskNestedGit(maskedPaths);
-            
-            // 2. 地毯式補救措施與 Git 骨架修復：抓出所有從存檔復原的幽靈擴展並修復它們
             await restoreCheckoutGit(extensionsPath); 
         }
 
@@ -654,6 +663,7 @@ async function loadSave(tagName) {
         currentOperation = null;
     }
 }
+
 async function deleteSave(tagName) {
     try {
         currentOperation = 'delete_save';
