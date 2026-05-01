@@ -664,9 +664,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // 创建存档
     async function createSave(name, description) {
         try {
+            // 修改：如果存檔名稱為空或只有空格，則自動生成香港時間的存檔名稱
             if (!name || name.trim() === '') {
-                showToast('错误', '存档名称不能为空', 'error');
-                return;
+                // 強制轉換為 Asia/Hong Kong 時區
+                const hkNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Hong Kong" }));
+                
+                const yyyy = hkNow.getFullYear();
+                // padStart 確保月份、日期、小時、分鐘永遠是兩位數
+                const mm = String(hkNow.getMonth() + 1).padStart(2, '0'); 
+                const dd = String(hkNow.getDate()).padStart(2, '0');
+                const hh = String(hkNow.getHours()).padStart(2, '0');
+                const min = String(hkNow.getMinutes()).padStart(2, '0');
+                
+                // 組合成 YYYY-MM-DD - HHMM
+                name = `${yyyy}-${mm}-${dd} - ${hh}${min}`;
             }
             
             showLoading('正在创建存档...');
