@@ -61,6 +61,8 @@ const DEFAULT_CONFIG = {
     autoSaveEnabled: false,
     autoSaveInterval: 30,
     autoSaveTargetTag: '',
+    autoSaveMode: 'overwrite',
+    autoSaveTimezoneOffset: 0,
 };
 
 let currentOperation = null;
@@ -74,6 +76,8 @@ async function readConfig() {
         config.autoSaveEnabled = config.autoSaveEnabled === undefined ? DEFAULT_CONFIG.autoSaveEnabled : config.autoSaveEnabled;
         config.autoSaveInterval = config.autoSaveInterval === undefined ? DEFAULT_CONFIG.autoSaveInterval : config.autoSaveInterval;
         config.autoSaveTargetTag = config.autoSaveTargetTag === undefined ? DEFAULT_CONFIG.autoSaveTargetTag : config.autoSaveTargetTag;
+        config.autoSaveMode = config.autoSaveMode === undefined ? DEFAULT_CONFIG.autoSaveMode : config.autoSaveMode;
+        config.autoSaveTimezoneOffset = config.autoSaveTimezoneOffset === undefined ? DEFAULT_CONFIG.autoSaveTimezoneOffset : config.autoSaveTimezoneOffset;
         return config;
     } catch (error) {
         console.warn('Failed to read or parse config, creating default:', error.message);
@@ -568,7 +572,7 @@ async function restoreCheckoutGit(targetPath) {
                         
                         // 清理掉我們強制追蹤的髒東西
                         await fs.rm(path.join(originalGit, '.gitignore'), { force: true }).catch(() => {});
-                        await fs.rm(path.join(originalGit, '.gitkeep'), { force: true }).catch(() => {}); // 順手清理根目錄可能存在的 gitkeep
+                        await fs.rm(path.join(originalGit, '.gitkeep'), { force: true }).catch(() => {});
                         
                         // 保險：強制建立基本空資料夾架構
                         const requiredGitDirs = ['objects/info', 'objects/pack', 'refs/heads', 'refs/tags', 'branches', 'info'];
@@ -829,7 +833,7 @@ async function getGitStatus() {
 
         let status = null;
         if (isInitialized) {
-            if (!currentOperation) { // 防止與備份時的 Mask 衝突
+            if (!currentOperation) {
                 const extensionsPath = path.join(DATA_DIR, 'default-user', 'extensions');
                 let maskedPaths = await maskNestedGit(extensionsPath);
                 try {
@@ -996,13 +1000,51 @@ async function performAutoSave() {
     let git;
     try {
         config = await readConfig();
-        if (!config.is_authorized || !config.autoSaveEnabled || !config.autoSaveTargetTag) {
+        if (!config.is_authorized || !config.autoSaveEnabled) {
+            currentOperation = null;
+            return;
+        }
+
+        const mode = config.autoSaveMode || 'overwrite';
+
+        if (mode === 'create') {
+            // 創建新存檔模式：像手動備份一樣創建新存檔
+            const offsetMinutes = config.autoSaveTimezoneOffset || 0;
+            // 根據瀏覽器時區偏移調整服務器UTC時間
+            const adjustedTime = new Date(Date.now() + offsetMinutes * 60 * 1000);
+            const year = adjustedTime.getUTCFullYear();
+            const month = String(adjustedTime.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(adjustedTime.getUTCDate()).padStart(2, '0');
+            const hours = String(adjustedTime.getUTCHours()).padStart(2, '0');
+            const minutes = String(adjustedTime.getUTCMinutes()).padStart(2, '0');
+            const saveName = `${year}-${month}-${day} - ${hours}${minutes} (Auto Save)`;
+            
+            console.log(`[Cloud Saves Auto] 創建模式: 自動創建新存檔 "${saveName}"`);
+            
+            // 臨時清除 currentOperation 以便調用 createSave
+            currentOperation = null;
+            try {
+                const result = await createSave(saveName, 'Auto Save');
+                if (result.success) {
+                    console.log(`[Cloud Saves Auto] 成功創建自動存檔: ${result.saveData?.tag}`);
+                } else {
+                    console.error(`[Cloud Saves Auto] 創建自動存檔失敗: ${result.message}`);
+                }
+            } catch (createError) {
+                console.error(`[Cloud Saves Auto] 創建自動存檔異常:`, createError);
+            }
+            return;
+        }
+
+        // 以下是覆蓋模式 (overwrite) 的原有邏輯
+        if (!config.autoSaveTargetTag) {
+            console.log('[Cloud Saves Auto] 覆蓋模式需要目標標籤，但未設置');
             currentOperation = null;
             return;
         }
 
         const targetTag = config.autoSaveTargetTag;
-        console.log(`[Cloud Saves Auto] 开始自动覆盖存档到: ${targetTag}`);
+        console.log(`[Cloud Saves Auto] 開始自動覆蓋存檔到: ${targetTag}`);
         git = await getGitInstance();
         const branchToUse = config.branch || DEFAULT_BRANCH;
 
@@ -1043,7 +1085,7 @@ async function performAutoSave() {
             await unmaskNestedGit(maskedPaths);
         }
 
-        if (!newCommitHash) throw new Error('无法确定用于自动存档的提交哈希');
+        if (!newCommitHash) throw new Error('無法確定用於自動存檔的提交哈希');
 
         try { await git.tag(['-d', targetTag]); } catch (delLocalErr) {}
         try { await git.push(['origin', `:refs/tags/${targetTag}`]); } catch (delRemoteErr) {}
@@ -1058,10 +1100,10 @@ async function performAutoSave() {
              await git.tag(['-d', targetTag]);
              throw pushTagError;
         }
-        console.log(`[Cloud Saves Auto] 成功自动覆盖存档: ${targetTag}`);
+        console.log(`[Cloud Saves Auto] 成功自動覆蓋存檔: ${targetTag}`);
 
     } catch (error) {
-        console.error(`[Cloud Saves Auto] 自动覆盖存档失败 (${config?.autoSaveTargetTag}):`, error);
+        console.error(`[Cloud Saves Auto] 自動存檔失敗 (mode: ${config?.autoSaveMode}, tag: ${config?.autoSaveTargetTag}):`, error);
     } finally {
         currentOperation = null;
     }
@@ -1074,13 +1116,20 @@ function setupBackendAutoSaveTimer() {
     }
 
     readConfig().then(config => {
-        if (config.is_authorized && config.autoSaveEnabled && config.autoSaveTargetTag) {
+        if (config.is_authorized && config.autoSaveEnabled) {
+            const mode = config.autoSaveMode || 'overwrite';
+            // 創建模式不需要 targetTag，覆蓋模式需要
+            if (mode === 'overwrite' && !config.autoSaveTargetTag) {
+                console.log('[Cloud Saves] 覆蓋模式需要目標標籤，自動存檔定時器不會啟動');
+                return;
+            }
             let intervalMilliseconds = (config.autoSaveInterval > 0 ? config.autoSaveInterval : 30) * 60 * 1000;
             if (intervalMilliseconds < 60000) intervalMilliseconds = 60000;
             autoSaveBackendTimer = setInterval(performAutoSave, intervalMilliseconds);
+            console.log(`[Cloud Saves] 自動存檔定時器已啟動 (模式: ${mode}, 間隔: ${config.autoSaveInterval}分鐘)`);
         }
     }).catch(err => {
-        console.error('[Cloud Saves] 启动后端定时器前读取配置失败:', err);
+        console.error('[Cloud Saves] 啟動後端定時器前讀取配置失敗:', err);
     });
 }
 
@@ -1111,6 +1160,8 @@ async function init(router) {
                     autoSaveEnabled: config.autoSaveEnabled || false,
                     autoSaveInterval: config.autoSaveInterval || 30,
                     autoSaveTargetTag: config.autoSaveTargetTag || '',
+                    autoSaveMode: config.autoSaveMode || 'overwrite',
+                    autoSaveTimezoneOffset: config.autoSaveTimezoneOffset || 0,
                     has_github_token: !!config.github_token,
                 };
                 res.json(safeConfig);
@@ -1123,7 +1174,7 @@ async function init(router) {
             try {
                 const {
                     repo_url, github_token, display_name, branch, is_authorized,
-                    autoSaveEnabled, autoSaveInterval, autoSaveTargetTag
+                    autoSaveEnabled, autoSaveInterval, autoSaveTargetTag, autoSaveMode, autoSaveTimezoneOffset
                 } = req.body;
                 let currentConfig = await readConfig();
 
@@ -1141,6 +1192,8 @@ async function init(router) {
                 }
                 
                 if (autoSaveTargetTag !== undefined) currentConfig.autoSaveTargetTag = autoSaveTargetTag.trim();
+                if (autoSaveMode !== undefined) currentConfig.autoSaveMode = autoSaveMode;
+                if (autoSaveTimezoneOffset !== undefined) currentConfig.autoSaveTimezoneOffset = parseInt(autoSaveTimezoneOffset) || 0;
 
                 await saveConfig(currentConfig);
                 setupBackendAutoSaveTimer();
@@ -1153,7 +1206,9 @@ async function init(router) {
                     username: currentConfig.username,
                     autoSaveEnabled: currentConfig.autoSaveEnabled,
                     autoSaveInterval: currentConfig.autoSaveInterval,
-                    autoSaveTargetTag: currentConfig.autoSaveTargetTag
+                    autoSaveTargetTag: currentConfig.autoSaveTargetTag,
+                    autoSaveMode: currentConfig.autoSaveMode,
+                    autoSaveTimezoneOffset: currentConfig.autoSaveTimezoneOffset
                 };
                 res.json({ success: true, message: '配置保存成功', config: safeConfig });
             } catch (error) {
@@ -1258,7 +1313,9 @@ async function init(router) {
                     username: config.username,
                     autoSaveEnabled: config.autoSaveEnabled,
                     autoSaveInterval: config.autoSaveInterval,
-                    autoSaveTargetTag: config.autoSaveTargetTag
+                    autoSaveTargetTag: config.autoSaveTargetTag,
+                    autoSaveMode: config.autoSaveMode,
+                    autoSaveTimezoneOffset: config.autoSaveTimezoneOffset
                 };
 
                 res.json({ success: true, message: '授权和配置成功', config: safeConfig });
@@ -1374,7 +1431,7 @@ async function init(router) {
             }
         });
 
-                router.post('/saves/:tagName/overwrite', async (req, res) => {
+        router.post('/saves/:tagName/overwrite', async (req, res) => {
             if (currentOperation) return res.status(409).json({ success: false, message: `正在进行操作: ${currentOperation}` });
             currentOperation = 'overwrite_save';
             const { tagName } = req.params;
@@ -1447,7 +1504,7 @@ async function init(router) {
             }
         });
 
-                // 處理插件檢查更新與拉取
+        // 處理插件檢查更新與拉取
         router.post('/update/check-and-pull', async (req, res) => {
             if (currentOperation) return res.status(409).json({ success: false, message: `正在进行操作: ${currentOperation}` });
             try {
@@ -1495,7 +1552,7 @@ async function init(router) {
     }
 } // 結束 init 函數
 
-// 匯出插件 (這段剛才被截斷了，是擴展能正常運作的關鍵)
+// 匯出插件
 module.exports = {
     info,
     init
