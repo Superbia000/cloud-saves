@@ -1,11 +1,53 @@
 <!DOCTYPE html>
+<!-- ============================================================================
+     SillyTavern Cloud Saves 插件 - 前端界面 (index.html)
+     ============================================================================
+     
+     页面结构概览：
+       1. 检查更新按钮（页面左上角）
+       2. 页面标题
+       3. 仓库授权设置卡片（输入 URL、Token、分支等）
+       4. 定时自动存档设置卡片（间隔、模式、目标标签）
+       5. 创建新存档卡片（名称和描述输入）
+       6. 存档列表卡片（搜索、排序、展示所有存档）
+       7. 临时 Stash 恢复通知条
+       8. 底部状态栏（Git 状态、当前存档）
+     
+     模态框：
+       - 重命名/编辑存档模态框
+       - 确认操作对话框
+       - 存档差异对比模态框
+     
+     加载覆盖层和通知组件也在本文件中定义。
+     
+     依赖：
+       - Bootstrap 5.2.3 CSS + JS（CDN 引入）
+       - Bootstrap Icons 1.10.3（CDN 引入）
+       - 自定义脚本 script.js（本地加载）
+     
+     语言：简体中文 (zh-CN)
+     ============================================================================
+-->
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <!-- 
+        viewport 设置：确保移动设备上的响应式显示 
+        width=device-width: 视口宽度等于设备宽度
+        initial-scale=1.0: 初始缩放比例为 1:1
+    -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SillyTavern 云存档</title>
+    
+    <!-- Bootstrap 5 CSS - 提供栅格系统、组件样式和工具类 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <!-- Bootstrap Icons - 提供丰富的图标库 (bi-* 类名) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.min.css">
+    
+    <!-- 
+        内联样式: 在这里定义是因为需要覆盖 Bootstrap 默认变量
+        使用 :root CSS 变量实现主题色统一管理
+    -->
     <style>
         :root {
             --bs-primary: #7c71f5;
@@ -42,288 +84,245 @@
         .card-body {
             padding: 15px;
         }
-        .btn-primary {
-            background-color: var(--bs-primary);
-            border-color: var(--bs-primary);
-        }
-        .btn-success {
-            background-color: var(--bs-success);
-            border-color: var(--bs-success);
-        }
-        .btn-warning {
-            background-color: var(--bs-warning);
-            border-color: var(--bs-warning);
-            color: #202123;
-        }
-        .btn-danger {
-            background-color: var(--bs-danger);
-            border-color: var(--bs-danger);
-        }
-        .save-card {
-            position: relative;
-        }
-        .save-card .action-buttons {
-            display: flex;
-            justify-content: flex-end;
-            gap: 5px;
-        }
-        .save-timestamp {
-            color: #aaaaaa;
-            font-size: 0.9rem;
-        }
-        .save-description {
-            color: #dddddd;
-            margin-top: 8px;
-            white-space: pre-line;
-            max-height: 100px;
-            overflow-y: auto;
-        }
-        .save-current-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background-color: var(--bs-primary);
-            color: white;
-            padding: 3px 10px;
-            border-radius: 10px;
-            font-size: 0.8rem;
-            z-index: 10;
-        }
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            display: none;
-        }
-        .spinner-container {
-            text-align: center;
-        }
-        .spinner-message {
-            margin-top: 15px;
-            font-size: 1.2rem;
-            color: white;
-        }
-        #auth-section {
-            margin-bottom: 30px;
-        }
-        #saves-container {
-            max-height: 70vh;
-            overflow-y: auto;
-            padding-right: 5px;
-        }
-        #saves-container::-webkit-scrollbar {
-            width: 8px;
-        }
-        #saves-container::-webkit-scrollbar-track {
-            background: #2d2d31;
-            border-radius: 10px;
-        }
-        #saves-container::-webkit-scrollbar-thumb {
-            background: #555555;
-            border-radius: 10px;
-        }
-        #saves-container::-webkit-scrollbar-thumb:hover {
-            background: #777777;
-        }
-        #status-bar {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #2d2d31;
-            border-radius: 5px;
-            font-size: 0.9rem;
-        }
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #444444;
-        }
-        .filter-dropdown {
-            max-width: 200px;
-        }
-        #search-box {
-            background-color: #2d2d31;
-            border: 1px solid #444444;
-            color: white;
-        }
-        /* Modal customization */
-        .modal-content {
-            background-color: #2d2d31;
-            color: white;
-            border: 1px solid #444444;
-        }
-        .modal-header {
-            border-bottom: 1px solid #444444;
-        }
-        .modal-footer {
-            border-top: 1px solid #444444;
-        }
-        .form-control, .form-select {
-            background-color: #383838;
-            border: 1px solid #555555;
-            color: white;
-        }
-        .form-control:focus, .form-select:focus {
-            background-color: #3a3a3a;
-            color: white;
-            border-color: var(--bs-primary);
-            box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
-        }
-        /* Toast notifications */
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1050;
-        }
-        .toast {
-            background-color: #2d2d31;
-            color: white;
-            border: 1px solid #444444;
-        }
-        .toast-header {
-            background-color: rgba(0, 0, 0, 0.2);
-            color: white;
-            border-bottom: 1px solid #444444;
-        }
-        .empty-state {
-            text-align: center;
-            padding: 50px 20px;
-            color: #aaaaaa;
-        }
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            color: #555555;
-        }
-        .badge-changes {
-            font-size: 0.7rem;
-            padding: 3px 7px;
-            margin-left: 5px;
-            vertical-align: middle;
-            background-color: #555555;
-        }
+        .btn-primary { background-color: var(--bs-primary); border-color: var(--bs-primary); }
+        .btn-success { background-color: var(--bs-success); border-color: var(--bs-success); }
+        .btn-warning { background-color: var(--bs-warning); border-color: var(--bs-warning); color: #202123; }
+        .btn-danger { background-color: var(--bs-danger); border-color: var(--bs-danger); }
+        
+        /* 存档卡片：相对定位，为"当前存档"徽章提供锚点 */
+        .save-card { position: relative; }
+        .save-card .action-buttons { display: flex; justify-content: flex-end; gap: 5px; }
+        .save-timestamp { color: #aaaaaa; font-size: 0.9rem; }
+        .save-description { color: #dddddd; margin-top: 8px; white-space: pre-line; max-height: 100px; overflow-y: auto; }
+        
+        /* "当前存档"角标 */
+        .save-current-badge { position: absolute; top: 10px; right: 10px; background-color: var(--bs-primary); color: white; padding: 3px 10px; border-radius: 10px; font-size: 0.8rem; z-index: 10; }
+        
+        /* 加载遮罩层：固定覆盖全屏 */
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; display: none; }
+        .spinner-container { text-align: center; }
+        .spinner-message { margin-top: 15px; font-size: 1.2rem; color: white; }
+        
+        #auth-section { margin-bottom: 30px; }
+        
+        /* 存档列表可滚动区域 */
+        #saves-container { max-height: 70vh; overflow-y: auto; padding-right: 5px; }
+        /* 自定义滚动条 */
+        #saves-container::-webkit-scrollbar { width: 8px; }
+        #saves-container::-webkit-scrollbar-track { background: #2d2d31; border-radius: 10px; }
+        #saves-container::-webkit-scrollbar-thumb { background: #555555; border-radius: 10px; }
+        #saves-container::-webkit-scrollbar-thumb:hover { background: #777777; }
+        
+        #status-bar { margin-top: 20px; padding: 10px; background-color: #2d2d31; border-radius: 5px; font-size: 0.9rem; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #444444; }
+        .filter-dropdown { max-width: 200px; }
+        #search-box { background-color: #2d2d31; border: 1px solid #444444; color: white; }
+        
+        /* 模态框 */
+        .modal-content { background-color: #2d2d31; color: white; border: 1px solid #444444; }
+        .modal-header { border-bottom: 1px solid #444444; }
+        .modal-footer { border-top: 1px solid #444444; }
+        
+        /* 表单控件 */
+        .form-control, .form-select { background-color: #383838; border: 1px solid #555555; color: white; }
+        .form-control:focus, .form-select:focus { background-color: #3a3a3a; color: white; border-color: var(--bs-primary); box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25); }
+        
+        /* Toast 通知 */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 1050; }
+        .toast { background-color: #2d2d31; color: white; border: 1px solid #444444; }
+        .toast-header { background-color: rgba(0, 0, 0, 0.2); color: white; border-bottom: 1px solid #444444; }
+        
+        .empty-state { text-align: center; padding: 50px 20px; color: #aaaaaa; }
+        .empty-state i { font-size: 3rem; margin-bottom: 15px; color: #555555; }
+        .badge-changes { font-size: 0.7rem; padding: 3px 7px; margin-left: 5px; vertical-align: middle; background-color: #555555; }
     </style>
 </head>
 <body>
+    <!-- 
+        主容器
+        - container: Bootstrap 响应式容器
+        - py-4: 上下方向的内边距 (padding-y = 1.5rem)
+    -->
     <div class="container py-4">
-        <!-- 修改：将检查更新按钮移到标题前 -->
+        
+        <!-- =========================== 检查更新按钮 =========================== -->
+        <!-- 位于页面左上角，在标题之前 -->
         <div class="text-start mb-3">
             <button id="check-update-btn" class="btn btn-sm btn-outline-info" title="检查插件更新">
                 <i class="bi bi-cloud-arrow-down-fill"></i> 检查更新
             </button>
         </div>
 
+        <!-- =========================== 页面标题 =========================== -->
         <h1 class="text-center mb-4">
             <i class="bi bi-cloud-arrow-up-down me-2"></i>SillyTavern 云存档
         </h1>
 
-        <!-- 授权设置部分 -->
+        <!-- =========================== 1. 仓库授权设置卡片 =========================== -->
         <div id="auth-section" class="card">
             <div class="card-header">
                 <i class="bi bi-key-fill me-2"></i>仓库授权设置
             </div>
             <div class="card-body">
+                <!-- 
+                    授权表单
+                    包含：仓库 URL、分支名、GitHub Token、显示名称
+                    四个操作按钮：初始化仓库、配置、授权并连接、断开连接
+                -->
                 <div id="auth-form">
+                    <!-- 仓库 URL 输入 -->
                     <div class="mb-3">
                         <label for="repo-url" class="form-label">GitHub 仓库 URL</label>
-                        <input type="url" class="form-control mb-1" id="repo-url" placeholder="https://github.com/your-username/your-repo.git" required>
+                        <input type="url" class="form-control mb-1" id="repo-url" 
+                               placeholder="https://github.com/your-username/your-repo.git" required>
                         <small class="form-text text-muted">请确保仓库已创建且您拥有写入权限</small>
                     </div>
 
-                    <!-- 新增：分支输入框 -->
+                    <!-- 分支输入框（新增功能） -->
                     <div class="mb-3">
                         <label for="branch-input" class="form-label">分支</label>
                         <input type="text" class="form-control" id="branch-input" value="main" placeholder="main">
                         <small class="form-text text-muted">将用于存储存档的分支。如果不存在，将尝试创建。</small>
                     </div>
 
+                    <!-- GitHub 访问令牌输入 -->
                     <div class="mb-3">
                         <label for="github-token" class="form-label">GitHub 访问令牌</label>
+                        <!-- type="password" 隐藏输入的令牌内容 -->
                         <input type="password" class="form-control" id="github-token" placeholder="例如: ghp_xxxxxxxxxxxx">
                         <div class="form-text text-light">
+                            <!-- 链接到 GitHub Token 创建页面 -->
                             <a href="https://github.com/settings/tokens" target="_blank" class="text-info">创建令牌</a>
                             需要具有 repo 权限
                         </div>
                     </div>
+                    
+                    <!-- 显示名称输入（可选） -->
                     <div class="mb-3">
                         <label for="display-name" class="form-label">显示名称（可选）</label>
                         <input type="text" class="form-control" id="display-name" placeholder="用于存档记录的操作人名称">
                         <div class="form-text text-light">如果不设置，将尝试使用GitHub用户名或默认名称</div>
                     </div>
+                    
+                    <!-- 操作按钮组 -->
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-outline-warning" id="init-repo-btn" title="在 data 目录强制执行 git init 并配置远程仓库">
+                        <!-- 
+                            初始化仓库按钮
+                            - btn-outline-warning: 警告色轮廓按钮
+                            - 强制在 data 目录执行 git init 并配置远程仓库
+                        -->
+                        <button type="button" class="btn btn-outline-warning" id="init-repo-btn" 
+                                title="在 data 目录强制执行 git init 并配置远程仓库">
                             <i class="bi bi-hdd-rack-fill me-1"></i>初始化仓库
                         </button>
+                        <!-- 
+                            配置按钮
+                            - btn-secondary: 灰色次要按钮
+                            - 只保存配置信息，不进行授权验证
+                        -->
                         <button type="button" class="btn btn-secondary" id="configure-btn">
                             <i class="bi bi-gear-fill me-1"></i>配置
                         </button>
+                        <!-- 
+                            授权并连接按钮
+                            - btn-primary: 主色调按钮
+                            - 保存配置 + 验证远程连接 + 初始化同步
+                        -->
                         <button type="button" class="btn btn-primary" id="authorize-btn">
                             <i class="bi bi-shield-check me-1"></i>授权并连接
                         </button>
+                        <!-- 
+                            断开连接按钮
+                            - btn-danger: 危险色按钮
+                            - ms-auto: 将按钮推到右侧
+                            - 默认隐藏，授权成功后显示
+                        -->
                         <button type="button" class="btn btn-danger ms-auto" id="logout-btn" style="display: none;">
                             <i class="bi bi-box-arrow-right me-1"></i>断开连接
                         </button>
                     </div>
                 </div>
+                <!-- 
+                    授权状态提示
+                    - alert: Bootstrap 警告框组件
+                    - 默认隐藏，授权成功或失败时显示
+                -->
                 <div id="auth-status" class="alert mt-3" style="display: none;"></div>
             </div>
         </div>
 
-        <!-- 定时存档设置部分 -->
+        <!-- =========================== 2. 定时自动存档设置卡片 =========================== -->
+        <!-- 默认隐藏，授权成功后才显示 -->
         <div id="auto-save-section" class="card mb-4" style="display: none;">
             <div class="card-header">
                 <i class="bi bi-clock-history me-2"></i>定时自动存档设置
             </div>
             <div class="card-body">
+                <!-- 
+                    启用开关
+                    - form-switch: Bootstrap 开关样式
+                    - role="switch": ARIA 无障碍属性
+                -->
                 <div class="form-check form-switch mb-3">
                     <input class="form-check-input" type="checkbox" role="switch" id="auto-save-enabled">
                     <label class="form-check-label" for="auto-save-enabled">启用定时自动存档</label>
                 </div>
+                
+                <!-- 自动存档选项区域：默认隐藏，启用开关后才显示 -->
                 <div class="row g-3" id="auto-save-options" style="display: none;">
+                    <!-- 存档模式选择 -->
                     <div class="col-12 mb-2">
                         <label class="form-label">自动存档模式</label>
+                        <!-- 
+                            btn-group: Bootstrap 按钮组
+                            两个互斥的单选按钮（使用 input[type=radio] + btn-check 技术）
+                        -->
                         <div class="btn-group" role="group" id="auto-save-mode-group">
                             <input type="radio" class="btn-check" name="auto-save-mode" id="auto-save-mode-overwrite" value="overwrite" checked>
                             <label class="btn btn-outline-primary btn-sm" for="auto-save-mode-overwrite">覆盖已有存档</label>
+                            
                             <input type="radio" class="btn-check" name="auto-save-mode" id="auto-save-mode-create" value="create">
                             <label class="btn btn-outline-primary btn-sm" for="auto-save-mode-create">创建新存档</label>
                         </div>
-                        <small class="form-text text-muted d-block mt-1" id="auto-save-mode-hint">覆盖模式：每次自动存档将覆盖指定的已有存档标签。</small>
+                        <!-- 模式说明文字：根据选中模式动态变化 -->
+                        <small class="form-text text-muted d-block mt-1" id="auto-save-mode-hint">
+                            覆盖模式：每次自动存档将覆盖指定的已有存档标签。
+                        </small>
                     </div>
+                    
+                    <!-- 存档间隔（分钟） -->
                     <div class="col-md-6">
                         <label for="auto-save-interval" class="form-label">存档间隔（分钟）</label>
                         <input type="number" class="form-control" id="auto-save-interval" min="1" value="30">
                     </div>
+                    
+                    <!-- 覆盖目标标签（仅覆盖模式需要） -->
                     <div class="col-md-6" id="auto-save-target-tag-row">
                         <label for="auto-save-target-tag" class="form-label">覆盖的目标存档标签</label>
                         <input type="text" class="form-control" id="auto-save-target-tag" placeholder="输入要覆盖的存档标签名">
                         <small class="form-text text-muted">必须是已存在的云存档标签名。每次自动存档将覆盖此存档。</small>
                     </div>
                 </div>
-                 <button id="save-auto-save-settings-btn" class="btn btn-sm btn-secondary mt-3">保存定时设置</button>
+                 
+                <!-- 保存定时设置按钮 -->
+                <button id="save-auto-save-settings-btn" class="btn btn-sm btn-secondary mt-3">保存定时设置</button>
             </div>
         </div>
 
-        <!-- 创建新存档部分 -->
+        <!-- =========================== 3. 创建新存档卡片 =========================== -->
+        <!-- 默认隐藏，授权成功后才显示 -->
         <div id="create-save-section" class="card" style="display: none;">
             <div class="card-header">
                 <i class="bi bi-cloud-plus-fill me-2"></i>创建新存档
             </div>
             <div class="card-body">
                 <div class="row g-3">
+                    <!-- 存档名称输入（左列） -->
                     <div class="col-md-6">
-                        <input type="text" class="form-control" id="save-name" placeholder="存档名称（留空则自动命名为「YYYY-MM-DD - HHMM」）">
+                        <input type="text" class="form-control" id="save-name" 
+                               placeholder="存档名称（留空则自动命名为「YYYY-MM-DD - HHMM」)">
                     </div>
+                    <!-- 保存按钮（右列），使用 d-grid 让按钮撑满宽度 -->
                     <div class="col-md-6">
                         <div class="d-grid">
                             <button id="create-save-btn" class="btn btn-success">
@@ -331,6 +330,7 @@
                             </button>
                         </div>
                     </div>
+                    <!-- 存档描述输入（全宽） -->
                     <div class="col-12">
                         <textarea class="form-control" id="save-description" rows="2" placeholder="存档描述（可选）"></textarea>
                     </div>
@@ -338,19 +338,24 @@
             </div>
         </div>
 
-        <!-- 存档列表部分 -->
+        <!-- =========================== 4. 存档列表卡片 =========================== -->
+        <!-- 默认隐藏，授权成功后才显示 -->
         <div id="saves-section" class="card" style="display: none;">
             <div class="card-header">
                 <div class="section-header">
                     <span><i class="bi bi-list-stars me-2"></i>存档列表</span>
+                    <!-- 搜索和排序控件 -->
                     <div class="d-flex gap-2">
+                        <!-- 搜索框 -->
                         <input type="text" class="form-control form-control-sm" id="search-box" placeholder="搜索存档...">
+                        <!-- 排序下拉 -->
                         <select class="form-select form-select-sm filter-dropdown" id="sort-selector">
                             <option value="updated-desc">按更新时间排序 (降序)</option>
                             <option value="updated-asc">按更新时间排序 (升序)</option>
                             <option value="name-asc">名称 (A-Z)</option>
                             <option value="name-desc">名称 (Z-A)</option>
                         </select>
+                        <!-- 刷新按钮 -->
                         <button id="refresh-saves-btn" class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-arrow-clockwise"></i>
                         </button>
@@ -358,8 +363,9 @@
                 </div>
             </div>
             <div class="card-body">
+                <!-- 存档卡片容器——通过 JS 动态生成存档卡片 -->
                 <div id="saves-container">
-                    <!-- 存档卡片将通过JS动态生成 -->
+                    <!-- 空状态占位：无存档时显示 -->
                     <div class="empty-state" id="no-saves-message">
                         <i class="bi bi-cloud-slash"></i>
                         <h5>没有找到存档</h5>
@@ -369,7 +375,12 @@
             </div>
         </div>
 
-        <!-- 临时保存的工作区恢复通知 -->
+        <!-- =========================== 5. 临时 Stash 恢复通知 =========================== -->
+        <!-- 
+            加载存档时如果有未保存的更改，会自动创建临时 stash。
+            此通知条提示用户可以恢复或丢弃这些更改。
+            默认隐藏。
+        -->
         <div id="stash-notification" class="alert alert-warning mt-3" style="display: none;">
             <i class="bi bi-exclamation-triangle-fill me-2"></i>
             <span>您有切换存档前保存的临时工作区更改。</span>
@@ -379,15 +390,26 @@
             </div>
         </div>
 
-        <!-- 状态栏 -->
+        <!-- =========================== 6. 底部状态栏 =========================== -->
         <div id="status-bar">
             <div class="d-flex justify-content-between align-items-center">
+                <!-- 左侧：Git 状态和变更数量 -->
                 <div>
+                    <!-- 
+                        Git 仓库状态指示器
+                        - 灰点表示未初始化
+                        - 绿点 (text-success) 表示已就绪
+                    -->
                     <span id="git-status"><i class="bi bi-circle-fill text-secondary me-2"></i>未初始化</span>
+                    <!-- 
+                        未保存变更数量
+                        - 默认隐藏，有变更时才显示
+                    -->
                     <span id="changes-status" class="ms-3" style="display: none;">
                         <i class="bi bi-pencil-fill text-warning me-1"></i><span id="changes-count">0</span> 个未保存的更改
                     </span>
                 </div>
+                <!-- 右侧：当前加载的存档信息 -->
                 <div>
                     <span id="current-save-status">未加载任何存档</span>
                 </div>
@@ -395,15 +417,23 @@
         </div>
     </div>
 
-    <!-- 重命名/编辑模态框 -->
+    <!-- =========================== 模态框 1: 重命名/编辑存档 =========================== -->
+    <!-- 
+        Bootstrap Modal 组件
+        - fade: 淡入淡出动画
+        - modal-dialog: 居中对话框
+        - 用于编辑存档名称和描述
+    -->
     <div class="modal fade" id="renameModal" tabindex="-1" aria-labelledby="renameModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="renameModalLabel">重命名存档</h5>
+                    <!-- btn-close-white: 白色关闭按钮，适配暗色背景 -->
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- 隐藏字段：保存被编辑的存档标签名 -->
                     <input type="hidden" id="rename-tag-name">
                     <div class="mb-3">
                         <label for="rename-new-name" class="form-label">存档名称</label>
@@ -422,7 +452,12 @@
         </div>
     </div>
 
-    <!-- 确认对话框 -->
+    <!-- =========================== 模态框 2: 确认操作对话框 =========================== -->
+    <!-- 
+        通用确认对话框，用于删除、覆盖等危险操作前的二次确认
+        - 消息内容动态设置
+        - 确认按钮类型动态设置（btn-danger/btn-primary 等）
+    -->
     <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -430,6 +465,7 @@
                     <h5 class="modal-title" id="confirmModalLabel">确认操作</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
+                <!-- 消息文本动态填充 -->
                 <div class="modal-body" id="confirm-message">
                     您确定要执行此操作吗？
                 </div>
@@ -441,7 +477,12 @@
         </div>
     </div>
 
-    <!-- 差异比较模态框 -->
+    <!-- =========================== 模态框 3: 存档差异对比 =========================== -->
+    <!-- 
+        显示两个存档之间的文件差异
+        - modal-lg: 大尺寸模态框（因为有文件列表）
+        - 显示变更摘要和文件列表
+    -->
     <div class="modal fade" id="diffModal" tabindex="-1" aria-labelledby="diffModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -450,8 +491,10 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- 差异摘要区域 -->
                     <div class="diff-summary mb-3" id="diff-summary"></div>
                     <h6>更改文件列表:</h6>
+                    <!-- 变更文件列表区域 -->
                     <div class="diff-files" id="diff-files"></div>
                 </div>
                 <div class="modal-footer">
@@ -461,18 +504,32 @@
         </div>
     </div>
 
-    <!-- 加载覆盖层 -->
+    <!-- =========================== 加载覆盖层 =========================== -->
+    <!-- 
+        全屏加载遮罩
+        - 默认隐藏，API 调用时显示
+        - 包含旋转动画 (spinner-border) 和加载文字
+    -->
     <div class="loading-overlay" id="loading-overlay">
         <div class="spinner-container">
+            <!-- Bootstrap 旋转加载动画，3rem 大尺寸 -->
             <div class="spinner-border text-light" role="status" style="width: 3rem; height: 3rem;"></div>
             <div class="spinner-message" id="loading-message">正在加载...</div>
         </div>
     </div>
 
-    <!-- 通知容器 -->
+    <!-- =========================== Toast 通知容器 =========================== -->
+    <!-- 
+        通知消息的容器
+        - 固定定位在右上角
+        - JS 动态创建 toast 元素并添加到此容器中
+    -->
     <div class="toast-container"></div>
 
+    <!-- =========================== 脚本引入 =========================== -->
+    <!-- Bootstrap 5 JS (含 Popper.js，用于模态框、Toast 等组件) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- 自定义前端逻辑脚本 -->
     <script src="static/script.js"></script>
 </body>
 </html>

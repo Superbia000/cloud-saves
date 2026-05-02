@@ -1,116 +1,393 @@
-/* 全局样式 */
+/* ============================================================================
+ * SillyTavern Cloud Saves 插件 - 前端样式表
+ * ============================================================================
+ * 
+ * 本样式表为云存档插件的前端界面提供视觉设计。
+ * 采用暗色主题，与 SillyTavern 的整体设计风格保持一致。
+ * 
+ * 设计原则：
+ *   - 暗色背景减少眼部疲劳
+ *   - 柔和的阴影和过渡效果提升现代感
+ *   - 响应式布局适配不同屏幕尺寸
+ *   - CSS 变量便于全局主题色统一管理
+ *   - Bootstrap 5 框架基础上进行定制化覆盖
+ * 
+ * ============================================================================
+ */
+
+/* =========================== CSS 变量：主题色定义 =========================== */
 :root {
-    --primary-color: #4a6bff;
-    --secondary-color: #6c757d;
-    --success-color: #28a745;
-    --info-color: #17a2b8;
-    --danger-color: #dc3545;
-    --light-color: #f8f9fa;
-    --dark-color: #343a40;
+    --bs-primary: #7c71f5;        /* 主色调：柔和的紫色，用于主要按钮和强调元素 */
+    --bs-primary-rgb: 124, 113, 245;  /* 主色调 RGB 值，用于 rgba() 透明度计算 */
+    --bs-success: #62d462;         /* 成功色：鲜绿色，用于成功状态和创建操作 */
+    --bs-success-rgb: 98, 212, 98;
+    --bs-warning: #fad95f;         /* 警告色：暖黄色，用于警告提示和覆盖操作 */
+    --bs-warning-rgb: 250, 217, 95;
+    --bs-danger: #ff6c6c;          /* 危险色：红色，用于删除操作和错误提示 */
+    --bs-danger-rgb: 255, 108, 108;
 }
 
+/* =========================== 全局基础样式 =========================== */
+
+/* 
+ * body 样式
+ * - 使用系统字体栈确保跨平台一致的阅读体验
+ * - 深色背景 (#202123) 搭配白色文字，符合暗色主题
+ */
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, 
+                 Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background-color: #202123;
+    color: #ffffff;
 }
 
-/* 卡片样式 */
+/* =========================== 卡片组件样式 =========================== */
+
+/* 
+ * 卡片容器
+ * - 比 body 稍亮的背景色 (#2d2d31)，形成层次感
+ * - 圆角和阴影增强立体感
+ * - 悬停时微微上浮 (translateY)，提供交互反馈
+ */
 .card {
+    background-color: #2d2d31;
+    border: 1px solid #444444;
     border-radius: 10px;
-    overflow: hidden;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    margin-bottom: 15px;
     transition: transform 0.2s, box-shadow 0.2s;
-    border: none;
 }
 
+/* 卡片悬停效果：上浮 2px + 加深阴影 */
 .card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
 }
 
+/* 卡片头部：半透明黑色背景叠加，底部边框分隔 */
 .card-header {
-    border-bottom: none;
-    padding: 0.75rem 1.25rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid #444444;
+    font-weight: bold;
 }
 
-/* 按钮样式 */
-.btn {
-    border-radius: 5px;
-    padding: 0.5rem 1rem;
-    font-weight: 500;
-    transition: all 0.2s;
+/* 卡片主体内边距 */
+.card-body {
+    padding: 15px;
 }
 
+/* =========================== 按钮样式定制 =========================== */
+
+/* 主按钮：使用 CSS 变量确保主题色一致 */
 .btn-primary {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
 }
 
-.btn-primary:hover {
-    background-color: #3857e0;
-    border-color: #3857e0;
+/* 成功按钮 */
+.btn-success {
+    background-color: var(--bs-success);
+    border-color: var(--bs-success);
 }
 
-.btn-info {
-    background-color: var(--info-color);
-    border-color: var(--info-color);
-    color: white;
+/* 警告按钮：深色文字确保在黄色背景上的可读性 */
+.btn-warning {
+    background-color: var(--bs-warning);
+    border-color: var(--bs-warning);
+    color: #202123;
 }
 
-.btn-info:hover {
-    background-color: #138496;
-    border-color: #138496;
-    color: white;
+/* 危险按钮 */
+.btn-danger {
+    background-color: var(--bs-danger);
+    border-color: var(--bs-danger);
 }
 
-/* 表单样式 */
-.form-control {
-    border-radius: 5px;
-    padding: 0.75rem 1rem;
-    border: 1px solid #e0e0e0;
+/* =========================== 存档卡片（save-card）样式 =========================== */
+
+/* 
+ * 存档卡片容器：相对定位，为"当前存档"徽章的绝对定位提供参考系
+ */
+.save-card {
+    position: relative;
 }
 
-.form-control:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.25rem rgba(74, 107, 255, 0.25);
+/* 
+ * 操作按钮区域：右对齐，按钮之间有间距
+ */
+.save-card .action-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 5px;
 }
 
-/* 状态框样式 */
-.status-box {
-    max-height: 200px;
+/* 
+ * 时间戳文字：较暗的灰色，字体稍小，不喧宾夺主
+ */
+.save-timestamp {
+    color: #aaaaaa;
+    font-size: 0.9rem;
+}
+
+/* 
+ * 描述文字：浅灰色
+ * - white-space: pre-line 保留换行符，让描述中有多行文本时正确显示
+ * - max-height + overflow-y 限制描述区域高度，防止长描述撑破卡片
+ */
+.save-description {
+    color: #dddddd;
+    margin-top: 8px;
+    white-space: pre-line;
+    max-height: 100px;
     overflow-y: auto;
-    border: 1px solid #ddd;
-    font-family: monospace;
-    font-size: 0.85rem;
-    white-space: pre-wrap;
-    word-break: break-all;
 }
 
-/* 通知样式 */
-.toast {
+/* 
+ * "当前存档"徽章
+ * - 绝对定位在卡片右上角
+ * - 紫色背景白色文字，圆角胶囊形状
+ * - z-index: 10 确保在卡片内容之上
+ */
+.save-current-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: var(--bs-primary);
+    color: white;
+    padding: 3px 10px;
     border-radius: 10px;
-    border: none;
+    font-size: 0.8rem;
+    z-index: 10;
 }
 
+/* =========================== 加载覆盖层 =========================== */
+
+/* 
+ * 全屏半透明加载遮罩
+ * - 固定定位覆盖整个视口
+ * - 半透明黑色背景，使下方内容隐约可见
+ * - flex 布局居中加载动画
+ * - 默认隐藏 (display: none)
+ */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    display: none;
+}
+
+/* 加载动画容器 */
+.spinner-container {
+    text-align: center;
+}
+
+/* 加载文字提示 */
+.spinner-message {
+    margin-top: 15px;
+    font-size: 1.2rem;
+    color: white;
+}
+
+/* =========================== 各地区域间距 =========================== */
+
+/* 授权区域底部间距，与下方存档区域分隔 */
+#auth-section {
+    margin-bottom: 30px;
+}
+
+/* =========================== 存档列表容器 =========================== */
+
+/* 
+ * 存档列表可滚动区域
+ * - 最大高度 70vh，超出时垂直滚动
+ * - 右侧留出滚动条空间
+ */
+#saves-container {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+/* 
+ * 自定义滚动条样式（WebKit 内核浏览器）
+ * 让滚动条与暗色主题协调
+ */
+
+/* 滚动条轨道 */
+#saves-container::-webkit-scrollbar {
+    width: 8px;
+}
+#saves-container::-webkit-scrollbar-track {
+    background: #2d2d31;
+    border-radius: 10px;
+}
+
+/* 滚动条滑块 */
+#saves-container::-webkit-scrollbar-thumb {
+    background: #555555;
+    border-radius: 10px;
+}
+
+/* 滑块悬停时变亮 */
+#saves-container::-webkit-scrollbar-thumb:hover {
+    background: #777777;
+}
+
+/* =========================== 状态栏 =========================== */
+
+/* 
+ * 底部状态栏
+ * - 与卡片相同的背景色，形成视觉统一
+ * - 较小的字体 (0.9rem)，作为辅助信息
+ */
+#status-bar {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #2d2d31;
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+/* =========================== 分段标题 =========================== */
+
+/* 
+ * 存档列表的分段标题区域
+ * - 标题和操作按钮左右分布
+ * - 底部边框分隔
+ */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #444444;
+}
+
+/* =========================== 搜索和排序控件 =========================== */
+
+/* 排序下拉框最大宽度限制 */
+.filter-dropdown {
+    max-width: 200px;
+}
+
+/* 
+ * 搜索框
+ * - 暗色背景和边框与主题统一
+ * - 白色文字确保可读性
+ */
+#search-box {
+    background-color: #2d2d31;
+    border: 1px solid #444444;
+    color: white;
+}
+
+/* =========================== 模态框定制 =========================== */
+
+/* 模态框内容区：暗色背景 */
+.modal-content {
+    background-color: #2d2d31;
+    color: white;
+    border: 1px solid #444444;
+}
+
+/* 模态框头部和底部的分隔线 */
+.modal-header {
+    border-bottom: 1px solid #444444;
+}
+.modal-footer {
+    border-top: 1px solid #444444;
+}
+
+/* =========================== 表单控件定制 =========================== */
+
+/* 
+ * 输入框和选择框
+ * - 暗色背景比卡片稍亮 (#383838)，形成层次
+ * - 聚焦时变色为主色调，提供视觉反馈
+ * - rgba() 阴影使用 CSS 变量实现半透明主色光晕
+ */
+.form-control, .form-select {
+    background-color: #383838;
+    border: 1px solid #555555;
+    color: white;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: #3a3a3a;
+    color: white;
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
+/* =========================== Toast 通知组件 =========================== */
+
+/* 
+ * Toast 通知容器
+ * - 固定定位在右上角
+ * - 高 z-index 确保在所有内容之上
+ */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+
+/* Toast 本体：暗色背景 */
+.toast {
+    background-color: #2d2d31;
+    color: white;
+    border: 1px solid #444444;
+}
+
+/* Toast 头部 */
 .toast-header {
-    border-bottom: none;
+    background-color: rgba(0, 0, 0, 0.2);
+    color: white;
+    border-bottom: 1px solid #444444;
 }
 
-/* 动画 */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+/* =========================== 空状态占位 =========================== */
+
+/* 
+ * 无存档时的空状态提示
+ * - 居中布局
+ * - 大图标 + 灰色文字
+ * - 足够的上下内边距
+ */
+.empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: #aaaaaa;
 }
 
-.fade-in {
-    animation: fadeIn 0.3s ease-out forwards;
+/* 空状态图标：3rem 大尺寸，深灰低调 */
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    color: #555555;
 }
 
-/* 响应式调整 */
-@media (max-width: 768px) {
-    .container {
-        padding: 10px;
-    }
-    
-    .card-body {
-        padding: 1rem;
-    }
-} 
+/* =========================== 变更徽章 =========================== */
+
+/* 
+ * 差异对比中的变更数量徽章
+ * - 小字体小内边距
+ * - 灰色背景，作为辅助信息不喧宾夺主
+ * - vertical-align: middle 与文件名对齐
+ */
+.badge-changes {
+    font-size: 0.7rem;
+    padding: 3px 7px;
+    margin-left: 5px;
+    vertical-align: middle;
+    background-color: #555555;
+}
