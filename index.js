@@ -1317,70 +1317,6 @@ async function init(router) {
             }
         });
 
-                // 1. 新增：处理「检查并更新插件」的后端路由
-        router.post('/update/check-and-pull', async (req, res) => {
-            if (currentOperation) return res.status(409).json({ success: false, message: `正在进行操作: ${currentOperation}` });
-            try {
-                currentOperation = 'update_plugin';
-                const git = simpleGit(__dirname); // 检查插件自身的更新，而不是 DATA_DIR
-                
-                const isRepo = await git.checkIsRepo();
-                if (!isRepo) {
-                    return res.json({ success: true, status: 'not_git_repo', message: '无法自动更新：插件似乎不是通过 Git 安装的。' });
-                }
-
-                await git.fetch();
-                const status = await git.status();
-
-                if (status.behind === 0) {
-                    return res.json({ success: true, status: 'latest', message: '插件已是最新版本。' });
-                }
-
-                await git.pull();
-                res.json({ success: true, status: 'updated', message: '插件更新成功！请务必重启 SillyTavern 服务以应用更改。' });
-            } catch (error) {
-                res.status(500).json({ success: false, message: '检查或应用更新时发生意外错误', details: error.message });
-            } finally {
-                currentOperation = null;
-            }
-        });
-
-        // 2. 新增：处理「强制初始化仓库」的后端路由 (另一个也一并修复)
-        router.post('/initialize', async (req, res) => {
-            if (currentOperation) return res.status(409).json({ success: false, message: `正在进行操作: ${currentOperation}` });
-            try {
-                currentOperation = 'initialize_repo';
-                const gitDir = path.join(DATA_DIR, '.git');
-                const hiddenGitDir = path.join(DATA_DIR, GIT_BACKUP_NAME);
-                
-                // 彻底删除被破坏或旧有遗留的仓库文件以强制重建
-                await fs.rm(gitDir, { recursive: true, force: true }).catch(() => {});
-                await fs.rm(hiddenGitDir, { recursive: true, force: true }).catch(() => {});
-                
-                const initResult = await initGitRepo();
-                
-                if (initResult.success) {
-                    res.json({ success: true, message: '仓库强制初始化成功' });
-                } else {
-                    res.status(500).json({ success: false, message: initResult.message, details: initResult.details });
-                }
-            } catch (error) {
-                res.status(500).json({ success: false, message: '初始化仓库时发生意外错误', details: error.message });
-            } finally {
-                currentOperation = null;
-            }
-        });
-
-        // ================= 新增结束 =================
-
-        // 启动后台自动存档计时器
-        setupBackendAutoSaveTimer();
-
-    } catch (error) {
-        console.error('[cloud-saves] 初始化插件期间发生错误:', error);
-    }
-} // 结束 init 函数
-
         router.delete('/saves/:tagName', async (req, res) => {
             if (currentOperation) return res.status(409).json({ success: false, message: `正在进行操作: ${currentOperation}` });
             try {
@@ -1508,6 +1444,46 @@ async function init(router) {
                 res.status(500).json({ success: false, message: '覆盖存档时发生意外错误', details: error.message });
             } finally {
                 currentOperation = null;
+            }
+        });
+
+                // 處理插件檢查更新與拉取
+        router.post('/update/check-and-pull', async (req, res) => {
+            if (currentOperation) return res.status(409).json({ success: false, message: `正在进行操作: ${currentOperation}` });
+            try {
+                const pluginGit = simpleGit(__dirname);
+                const isRepo = await pluginGit.checkIsRepo();
+                
+                if (!isRepo) {
+                    return res.json({ success: true, status: 'not_git_repo' });
+                }
+
+                await pluginGit.fetch();
+                const status = await pluginGit.status();
+
+                if (status.behind === 0) {
+                    return res.json({ success: true, status: 'latest' });
+                }
+
+                await pluginGit.pull();
+                return res.json({ success: true, status: 'updated' });
+            } catch (error) {
+                console.error('[cloud-saves] 检查更新失败:', error);
+                res.status(500).json({ success: false, message: '检查更新过程发生错误', details: error.message });
+            }
+        });
+
+        // 處理強制初始化倉庫 (對應前端的「初始化倉庫」按鈕)
+        router.post('/initialize', async (req, res) => {
+            if (currentOperation) return res.status(409).json({ success: false, message: `正在进行操作: ${currentOperation}` });
+            try {
+                const gitDir = path.join(DATA_DIR, '.git');
+                // 刪除現有的 .git 目錄以實現強制初始化
+                await fs.rm(gitDir, { recursive: true, force: true }).catch(() => {});
+                const result = await initGitRepo();
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, message: '强制初始化仓库失败', details: error.message });
             }
         });
 
