@@ -217,7 +217,7 @@
 <body>
     <div class="container py-4">
         <!-- 修改：将检查更新按钮移到标题前 -->
-        <div class="text-start mb-3"> <!-- 使用 text-start 让按钮靠左，mb-3 增加下方间距 -->
+        <div class="text-start mb-3">
             <button id="check-update-btn" class="btn btn-sm btn-outline-info" title="检查插件更新">
                 <i class="bi bi-cloud-arrow-down-fill"></i> 检查更新
             </button>
@@ -279,8 +279,8 @@
             </div>
         </div>
 
-        <!-- 新增：定时存档设置部分 -->
-        <div id="auto-save-section" class="card mb-4" style="display: none;"> <!-- 初始隐藏，授权后显示 -->
+        <!-- 定时存档设置部分 -->
+        <div id="auto-save-section" class="card mb-4" style="display: none;">
             <div class="card-header">
                 <i class="bi bi-clock-history me-2"></i>定时自动存档设置
             </div>
@@ -289,12 +289,22 @@
                     <input class="form-check-input" type="checkbox" role="switch" id="auto-save-enabled">
                     <label class="form-check-label" for="auto-save-enabled">启用定时自动存档</label>
                 </div>
-                <div class="row g-3" id="auto-save-options" style="display: none;"> <!-- 选项默认隐藏 -->
+                <div class="row g-3" id="auto-save-options" style="display: none;">
+                    <div class="col-12 mb-2">
+                        <label class="form-label">自动存档模式</label>
+                        <div class="btn-group" role="group" id="auto-save-mode-group">
+                            <input type="radio" class="btn-check" name="auto-save-mode" id="auto-save-mode-overwrite" value="overwrite" checked>
+                            <label class="btn btn-outline-primary btn-sm" for="auto-save-mode-overwrite">覆盖已有存档</label>
+                            <input type="radio" class="btn-check" name="auto-save-mode" id="auto-save-mode-create" value="create">
+                            <label class="btn btn-outline-primary btn-sm" for="auto-save-mode-create">创建新存档</label>
+                        </div>
+                        <small class="form-text text-muted d-block mt-1" id="auto-save-mode-hint">覆盖模式：每次自动存档将覆盖指定的已有存档标签。</small>
+                    </div>
                     <div class="col-md-6">
                         <label for="auto-save-interval" class="form-label">存档间隔（分钟）</label>
                         <input type="number" class="form-control" id="auto-save-interval" min="1" value="30">
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-6" id="auto-save-target-tag-row">
                         <label for="auto-save-target-tag" class="form-label">覆盖的目标存档标签</label>
                         <input type="text" class="form-control" id="auto-save-target-tag" placeholder="输入要覆盖的存档标签名">
                         <small class="form-text text-muted">必须是已存在的云存档标签名。每次自动存档将覆盖此存档。</small>
@@ -465,4 +475,4 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="static/script.js"></script>
 </body>
-</html> 
+</html>
