@@ -930,7 +930,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const day = String(now.getDate()).padStart(2, '0');
                 const hours = String(now.getHours()).padStart(2, '0');
                 const minutes = String(now.getMinutes()).padStart(2, '0');
-                finalName = `${year}-${month}-${day} - ${hours}${minutes}`;
+                finalName = `${year}-${month}-${day} | ${hours}${minutes}`;
             }
             
             showLoading('正在创建存档...');
