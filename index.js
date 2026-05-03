@@ -1650,7 +1650,7 @@ async function performAutoSave() {
             const day = String(adjustedTime.getUTCDate()).padStart(2, '0');
             const hours = String(adjustedTime.getUTCHours()).padStart(2, '0');
             const minutes = String(adjustedTime.getUTCMinutes()).padStart(2, '0');
-            const saveName = `${year}-${month}-${day} - ${hours}${minutes} (Auto Save)`;
+            const saveName = `Auto Save | ${year}-${month}-${day} | ${hours}${minutes}`;
             
             console.log(`[Cloud Saves Auto] 创建模式: 自动创建新存档 "${saveName}"`);
             
