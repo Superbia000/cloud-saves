@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 autoSaveModeCreateRadio.checked = true;
                 autoSaveModeOverwriteRadio.checked = false;
                 autoSaveTargetTagRow.style.display = 'none';      // 创建模式不需要目标标签
-                autoSaveModeHint.textContent = '创建模式：每次自动存档将创建新存档（命名格式：YYYY-MM-DD - HHMM (Auto Save)），使用浏览器时区。';
+                autoSaveModeHint.textContent = '创建模式：每次自动存档将创建新存档（命名格式：Auto Save | YYYY-MM-DD | HHMM），使用浏览器时区。';
             } else {
                 autoSaveModeOverwriteRadio.checked = true;
                 autoSaveModeCreateRadio.checked = false;
@@ -913,7 +913,7 @@ document.addEventListener('DOMContentLoaded', function() {
     /**
      * createSave - 创建一个新的云端存档
      * 
-     * 存档名称如果为空，自动生成格式：YYYY-MM-DD - HHMM
+     * 存档名称如果为空，自动生成格式：YYYY-MM-DD | HHMM
      * 创建成功后清空输入框并刷新列表。
      * 
      * @param {string} name - 存档名称
@@ -1499,7 +1499,7 @@ document.addEventListener('DOMContentLoaded', function() {
     safeAddEventListener(autoSaveModeCreateRadio, 'change', () => {
         if (autoSaveModeCreateRadio.checked) {
             autoSaveTargetTagRow.style.display = 'none';  // 隐藏目标标签输入
-            autoSaveModeHint.textContent = '创建模式：每次自动存档将创建新存档（命名格式：YYYY-MM-DD - HHMM (Auto Save)），使用浏览器时区。';
+            autoSaveModeHint.textContent = '创建模式：每次自动存档将创建新存档（命名格式：Auto Save | YYYY-MM-DD | HHMM），使用浏览器时区。';
         }
     }, 'auto-save-mode-create');
 
